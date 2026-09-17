@@ -26,7 +26,12 @@ public class WebMvcConfig implements WebMvcConfigurer {
             "/api/departments/**",
             "/api/diseases/**",
             "/api/articles/**",
-            "/api/search/**",
+            // 公开搜索端点（历史/重建索引仍需登录，故不整体放行 /api/search/**）
+            "/api/search/hospitals",
+            "/api/search/doctors",
+            "/api/search/diseases",
+            "/api/search/articles",
+            "/api/search/hot",
             "/api/reviews/doctor/**",
             "/api/pay/alipay/notify",
             "/api/common/**",
