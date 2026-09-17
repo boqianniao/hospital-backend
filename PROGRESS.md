@@ -56,11 +56,14 @@
 
 ### B. 代码收尾（开发范畴）
 
-- [ ] **B1 🟠 订单超时自动取消 + 号源回补**：已开启 `@EnableScheduling` 且配置了
-  `hospital.order.timeout-minutes: 15`，但**没有任何 `@Scheduled` 任务**——
-  超时未支付订单不会自动关单、号源不回补。唯一明显的功能缺口，建议优先补。
-- [ ] **B2 🟡 测试**：`src/test` 为空，无任何单元/集成测试。
-- [ ] **B3 🟡 主流程联调回归**：DB 授权打通后，需对认证/搜索/挂号/咨询/支付/用户中心做一遍端到端回归。
+- [x] **B1 ✅ 订单超时自动取消 + 号源回补**：新增 `task/OrderTimeoutTask`（`@Scheduled`），
+  按 `hospital.order.timeout-scan-ms`（默认 60s）周期扫描，deadline=now−`timeout-minutes`(15)，
+  调用既有的 `AppointmentService/ConsultService.cancelTimeout`（取消未支付订单并回补号源）。
+  已实测：调度线程按周期触发、deadline 正确、无超时订单时正常空跑。
+- [~] **B2 🟡 测试**：已建 `src/test` 并加 `OrderNoGeneratorTest`（纯逻辑单测，通过）。
+  更广的 Service/接口集成测试待补（需 Testcontainers 或测试库/Redis）。
+- [ ] **B3 🟡 主流程联调回归**：DB/ES/OSS 均已通并分别实测；仍建议对认证/搜索/挂号/咨询/
+  支付/用户中心做一遍完整端到端回归（支付宝部分由其他同学并行修复中）。
 
 ### C. 交付动作（需授权）
 
