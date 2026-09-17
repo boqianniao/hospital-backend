@@ -5,6 +5,7 @@ import com.hospital.common.context.UserContext;
 import com.hospital.common.result.Result;
 import com.hospital.dto.order.PayCreateDTO;
 import com.hospital.service.PaymentService;
+import com.hospital.third.pay.AlipayService;
 import com.hospital.vo.PayInfoVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 public class PayController {
 
     private final PaymentService paymentService;
+    private final AlipayService alipayService;
 
     @Operation(summary = "发起支付")
     @PostMapping("/create")
@@ -46,7 +48,11 @@ public class PayController {
         Map<String, String> params = request.getParameterMap().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey,
                         e -> e.getValue().length > 0 ? e.getValue()[0] : ""));
-        // TODO: AlipaySignature.rsaCheckV1 验签
+        // 真实接入时先验签，验签不过直接拒绝，防止伪造回调
+        if (alipayService.isReady() && !alipayService.verifyNotify(params)) {
+            log.warn("支付宝回调验签失败 out_trade_no={}", params.get("out_trade_no"));
+            return "failure";
+        }
         String outTradeNo = params.get("out_trade_no");
         String tradeNo = params.get("trade_no");
         String tradeStatus = params.get("trade_status");

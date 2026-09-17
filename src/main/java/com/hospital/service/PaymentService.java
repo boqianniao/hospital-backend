@@ -11,6 +11,7 @@ import com.hospital.entity.PaymentFlow;
 import com.hospital.mapper.AppointmentMapper;
 import com.hospital.mapper.ConsultMapper;
 import com.hospital.mapper.PaymentFlowMapper;
+import com.hospital.third.pay.AlipayService;
 import com.hospital.vo.PayInfoVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class PaymentService {
     private final ConsultMapper consultMapper;
     private final NotificationService notificationService;
     private final HospitalProperties props;
+    private final AlipayService alipayService;
 
     /** 发起支付：校验订单归属与状态，创建/复用待支付流水，返回支付信息 */
     @Transactional(rollbackFor = Exception.class)
@@ -69,11 +71,18 @@ public class PaymentService {
         vo.setBusinessType(businessType);
         vo.setPayMethod(method);
         vo.setAmount(order.amount);
-        if (props.getAlipay().isEnabled()) {
-            // TODO: 调用支付宝 SDK 生成支付表单/链接
+        String payForm = null;
+        if (alipayService.isReady()) {
+            String subject = (businessType == OrderStatus.BIZ_APPOINTMENT ? "挂号订单-" : "咨询订单-") + orderNo;
+            payForm = alipayService.pagePay(subject, orderNo, order.amount.toPlainString(),
+                    props.getAlipay().getReturnUrl());
+        }
+        if (payForm != null) {
+            // 真实支付宝：返回自动提交表单，前端写入页面跳转收银台
             vo.setMock(false);
-            vo.setPayForm("<!-- 待接入支付宝沙箱：AlipayClient.pageExecute 返回的表单 -->");
+            vo.setPayForm(payForm);
         } else {
+            // 未接入或下单失败：走本地支付桩，联调用 mockNotifyUrl 触发支付成功
             vo.setMock(true);
             vo.setPayForm("MOCK_PAY_FORM");
             vo.setMockNotifyUrl("/api/pay/mock/success?orderNo=" + orderNo + "&businessType=" + businessType);
@@ -133,9 +142,9 @@ public class PaymentService {
             upd.setId(paid.getId());
             upd.setPayStatus(2); // 已退款
             paymentFlowMapper.updateById(upd);
-            if (props.getAlipay().isEnabled()) {
-                // TODO: 调用支付宝退款接口
-                log.info("[PAY] 调用支付宝退款 orderNo={} amount={}", orderNo, amount);
+            if (alipayService.isReady()) {
+                boolean ok = alipayService.refund(orderNo, amount.toPlainString());
+                log.info("[PAY] 支付宝退款 orderNo={} amount={} ok={}", orderNo, amount, ok);
             } else {
                 log.info("[PAY-MOCK] 模拟退款 orderNo={} amount={}", orderNo, amount);
             }

@@ -23,6 +23,7 @@
         <jjwt.version>0.12.6</jjwt.version>
         <hutool.version>5.8.34</hutool.version>
         <knife4j.version>4.5.0</knife4j.version>
+        <alipay-easysdk.version>2.2.3</alipay-easysdk.version>
     </properties>
 
     <dependencies>
@@ -96,6 +97,13 @@
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>${hutool.version}</version>
+        </dependency>
+
+        <!-- 支付宝 EasySDK（沙箱支付；未配置凭证时不初始化，走支付桩） -->
+        <dependency>
+            <groupId>com.alipay.sdk</groupId>
+            <artifactId>alipay-easysdk</artifactId>
+            <version>${alipay-easysdk.version}</version>
         </dependency>
 
         <!-- 密码加密 BCrypt（spring-security-crypto，仅用加密工具不引入完整安全框架） -->
