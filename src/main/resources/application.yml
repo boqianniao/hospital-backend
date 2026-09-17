@@ -1,0 +1,103 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: hospital-backend
+  # ---- MySQL（业务库）----
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:mysql://103.236.92.40:23901/hospital_db?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&characterEncoding=utf8&useUnicode=true}
+    username: ${DB_USERNAME:nexamind}
+    password: ${DB_PASSWORD:NexaMind}
+    hikari:
+      connection-timeout: 5000
+      maximum-pool-size: 10
+      minimum-idle: 2
+      pool-name: HospitalHikariPool
+  # ---- Redis（验证码 / Token / 缓存 / 号源）----
+  data:
+    redis:
+      host: ${REDIS_HOST:103.236.92.40}
+      port: ${REDIS_PORT:45921}
+      password: ${REDIS_PASSWORD:NexaMind}
+      database: ${REDIS_DATABASE:0}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+  # ---- Elasticsearch（搜索）。未部署时应用仍可启动，检索接口降级 ----
+  elasticsearch:
+    uris: ${ES_URIS:http://103.236.92.40:9200}
+    username: ${ES_USERNAME:}
+    password: ${ES_PASSWORD:}
+    connection-timeout: 3s
+    socket-timeout: 5s
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 50MB
+  # 全局 JSON 时间格式
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+
+# ---- MyBatis-Plus ----
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    # 开发期打印 SQL；上线可关闭
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    banner: false
+    db-config:
+      # 主键：数据库自增。业务表历史数据存在超大 id，保持 AUTO
+      id-type: auto
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.hospital.entity
+
+# ---- 业务自定义配置 ----
+hospital:
+  jwt:
+    # HS256 密钥（Base64），生产环境请用环境变量覆盖
+    secret: ${JWT_SECRET:aG9zcGl0YWwtb25saW5lLXJlZ2lzdHJhdGlvbi1qd3Qtc2VjcmV0LWtleS0yMDI2}
+    # Token 有效期（秒），默认 7 天
+    expire-seconds: ${JWT_EXPIRE:604800}
+    # 请求头名称（与前端 auth-interceptor.js 约定一致）
+    header: token
+  # 短信验证码（桩：打印到日志；后续接真实短信服务）
+  sms:
+    enabled: false
+    code-expire-seconds: 300
+    code-length: 6
+  # 支付宝沙箱（桩：后续填入真实配置并启用）
+  alipay:
+    enabled: false
+    gateway: https://openapi.sandbox.dl.alipaydev.com/gateway.do
+    app-id: ${ALIPAY_APP_ID:}
+    app-private-key: ${ALIPAY_APP_PRIVATE_KEY:}
+    alipay-public-key: ${ALIPAY_PUBLIC_KEY:}
+    notify-url: ${ALIPAY_NOTIFY_URL:http://localhost:8080/api/pay/alipay/notify}
+    return-url: ${ALIPAY_RETURN_URL:http://localhost:8080/api/pay/alipay/return}
+  # 对象存储（桩：后续接 MinIO/OSS）
+  oss:
+    enabled: false
+    endpoint: ${MINIO_ENDPOINT:http://103.236.92.40:29041}
+    access-key: ${MINIO_ACCESS_KEY:admin}
+    secret-key: ${MINIO_SECRET_KEY:NexaMind}
+    bucket: hospital
+  # 订单超时自动取消（分钟）
+  order:
+    timeout-minutes: 15
+
+logging:
+  level:
+    com.hospital: debug
+    org.springframework.data.elasticsearch.client: warn
