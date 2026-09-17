@@ -27,6 +27,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
             "/api/diseases/**",
             "/api/articles/**",
             "/api/search/**",
+            "/api/reviews/doctor/**",
             "/api/pay/alipay/notify",
             "/api/common/**",
             // 接口文档
