@@ -1,0 +1,22 @@
+# ---- Maven ----
+target/
+*.class
+*.log
+
+# ---- IDE ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+
+# ---- 本地覆盖配置（含密钥，不入库）----
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
