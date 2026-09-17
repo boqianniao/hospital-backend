@@ -1,6 +1,7 @@
 package com.hospital.service;
 
 import com.hospital.common.constant.RedisKeys;
+import com.hospital.config.props.HospitalProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -21,14 +22,8 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class SearchHistoryService {
 
-    /** 每个用户最多保留的历史条数 */
-    private static final int HISTORY_MAX = 20;
-    /** 历史过期天数 */
-    private static final long HISTORY_TTL_DAYS = 30;
-    /** 热搜默认返回条数 */
-    private static final int HOT_DEFAULT_LIMIT = 10;
-
     private final StringRedisTemplate redis;
+    private final HospitalProperties props;
 
     /** 记录一次用户搜索：去重置顶、截断、续期 */
     public void addHistory(Long userId, String keyword) {
@@ -40,8 +35,8 @@ public class SearchHistoryService {
         try {
             redis.opsForList().remove(key, 0, kw);
             redis.opsForList().leftPush(key, kw);
-            redis.opsForList().trim(key, 0, HISTORY_MAX - 1);
-            redis.expire(key, HISTORY_TTL_DAYS, TimeUnit.DAYS);
+            redis.opsForList().trim(key, 0, props.getSearch().getHistoryMax() - 1);
+            redis.expire(key, props.getSearch().getHistoryTtlDays(), TimeUnit.DAYS);
         } catch (Exception e) {
             log.warn("记录搜索历史失败 userId={} kw={}: {}", userId, kw, e.getMessage());
         }
@@ -50,7 +45,7 @@ public class SearchHistoryService {
     /** 我的搜索历史（最近在前） */
     public List<String> listHistory(Long userId) {
         try {
-            List<String> list = redis.opsForList().range(RedisKeys.searchHistory(userId), 0, HISTORY_MAX - 1);
+            List<String> list = redis.opsForList().range(RedisKeys.searchHistory(userId), 0, props.getSearch().getHistoryMax() - 1);
             return list == null ? Collections.emptyList() : list;
         } catch (Exception e) {
             log.warn("读取搜索历史失败 userId={}: {}", userId, e.getMessage());
@@ -81,7 +76,8 @@ public class SearchHistoryService {
 
     /** 热门搜索词（按次数降序） */
     public List<String> hotKeywords(Integer limit) {
-        int n = (limit == null || limit <= 0) ? HOT_DEFAULT_LIMIT : Math.min(limit, 50);
+        HospitalProperties.Search cfg = props.getSearch();
+        int n = (limit == null || limit <= 0) ? cfg.getHotDefaultLimit() : Math.min(limit, cfg.getHotMaxLimit());
         try {
             Set<String> set = redis.opsForZSet().reverseRange(RedisKeys.SEARCH_HOT, 0, n - 1);
             return (set == null || set.isEmpty()) ? Collections.emptyList() : List.copyOf(set);

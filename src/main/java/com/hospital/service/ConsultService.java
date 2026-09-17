@@ -12,11 +12,15 @@ import com.hospital.common.result.ResultCode;
 import com.hospital.common.util.OrderNoGenerator;
 import com.hospital.dto.order.ConsultCreateDTO;
 import com.hospital.entity.Consult;
+import com.hospital.entity.Department;
 import com.hospital.entity.Doctor;
 import com.hospital.entity.FamilyMember;
+import com.hospital.entity.Hospital;
 import com.hospital.mapper.ConsultMapper;
+import com.hospital.mapper.DepartmentMapper;
 import com.hospital.mapper.DoctorMapper;
 import com.hospital.mapper.FamilyMemberMapper;
+import com.hospital.mapper.HospitalMapper;
 import com.hospital.vo.ConsultVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -39,6 +43,8 @@ public class ConsultService {
 
     private final ConsultMapper consultMapper;
     private final DoctorMapper doctorMapper;
+    private final DepartmentMapper departmentMapper;
+    private final HospitalMapper hospitalMapper;
     private final FamilyMemberMapper familyMemberMapper;
     private final PaymentService paymentService;
     private final NotificationService notificationService;
@@ -64,7 +70,11 @@ public class ConsultService {
 
         notificationService.push(userId, "电话咨询下单成功",
                 String.format("您已向 %s 提交电话咨询，请尽快完成支付。", doctor.getName()));
-        return toVO(order, doctor.getName());
+        Department department = doctor.getDepartmentId() == null ? null : departmentMapper.selectById(doctor.getDepartmentId());
+        Hospital hospital = doctor.getHospitalId() == null ? null : hospitalMapper.selectById(doctor.getHospitalId());
+        return toVO(order, doctor,
+                department == null ? null : department.getName(),
+                hospital == null ? null : hospital.getName());
     }
 
     public PageResult<ConsultVO> myPage(Long userId, long pageNum, long pageSize, Integer status) {
@@ -171,15 +181,36 @@ public class ConsultService {
             return Collections.emptyList();
         }
         List<Long> docIds = list.stream().map(Consult::getDoctorId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
-        Map<Long, String> docNames = docIds.isEmpty() ? Collections.emptyMap()
-                : doctorMapper.selectBatchIds(docIds).stream().collect(Collectors.toMap(Doctor::getId, Doctor::getName, (a, b) -> a));
-        return list.stream().map(o -> toVO(o, docNames.get(o.getDoctorId()))).collect(Collectors.toList());
+        Map<Long, Doctor> doctors = docIds.isEmpty() ? Collections.emptyMap()
+                : doctorMapper.selectBatchIds(docIds).stream().collect(Collectors.toMap(Doctor::getId, d -> d, (a, b) -> a));
+        List<Long> deptIds = doctors.values().stream().map(Doctor::getDepartmentId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        List<Long> hospitalIds = doctors.values().stream().map(Doctor::getHospitalId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        Map<Long, String> departmentNames = deptIds.isEmpty() ? Collections.emptyMap()
+                : departmentMapper.selectBatchIds(deptIds).stream()
+                .collect(Collectors.toMap(Department::getId, Department::getName, (a, b) -> a));
+        Map<Long, String> hospitalNames = hospitalIds.isEmpty() ? Collections.emptyMap()
+                : hospitalMapper.selectBatchIds(hospitalIds).stream()
+                .collect(Collectors.toMap(Hospital::getId, Hospital::getName, (a, b) -> a));
+        return list.stream().map(o -> {
+            Doctor doctor = doctors.get(o.getDoctorId());
+            return toVO(o, doctor,
+                    doctor == null ? null : departmentNames.get(doctor.getDepartmentId()),
+                    doctor == null ? null : hospitalNames.get(doctor.getHospitalId()));
+        }).collect(Collectors.toList());
     }
 
-    private ConsultVO toVO(Consult o, String doctorName) {
+    private ConsultVO toVO(Consult o, Doctor doctor, String departmentName, String hospitalName) {
         ConsultVO vo = new ConsultVO();
         BeanUtil.copyProperties(o, vo);
-        vo.setDoctorName(doctorName);
+        if (doctor != null) {
+            vo.setDoctorName(doctor.getName());
+            vo.setDoctorTitle(doctor.getTitle());
+            vo.setDoctorAvatar(doctor.getAvatar());
+        }
+        vo.setDepartmentName(departmentName);
+        vo.setHospitalName(hospitalName);
         vo.setStatusText(OrderStatus.consultText(o.getStatus()));
         return vo;
     }

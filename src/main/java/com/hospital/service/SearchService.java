@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hospital.common.result.PageResult;
+import com.hospital.config.props.HospitalProperties;
 import com.hospital.entity.Article;
 import com.hospital.entity.Disease;
 import com.hospital.entity.Doctor;
@@ -55,13 +56,12 @@ public class SearchService {
     private final DiseaseMapper diseaseMapper;
     private final ArticleMapper articleMapper;
     private final SearchHistoryService searchHistoryService;
+    private final HospitalProperties props;
 
     /** ES 可用性缓存：null=未探测，true/false=已探测结果 */
     private volatile Boolean esUp;
     /** ES 判定不可用的时间戳，用于按 TTL 自动重探 */
     private volatile long esDownAtMs;
-    /** ES 不可用后重新探活的最小间隔（毫秒） */
-    private static final long ES_RETRY_INTERVAL_MS = 60_000L;
 
     // ---------------- 对外搜索 ----------------
 
@@ -80,6 +80,15 @@ public class SearchService {
 
     public PageResult<Doctor> searchDoctors(String keyword, long pageNum, long pageSize) {
         searchHistoryService.incrHot(keyword);
+        if (StringUtils.hasText(keyword)) {
+            IPage<Doctor> nameMatches = doctorMapper.selectPage(new Page<>(pageNum, pageSize),
+                    Wrappers.<Doctor>lambdaQuery()
+                            .like(Doctor::getName, keyword.trim())
+                            .orderByDesc(Doctor::getConsultCount));
+            if (nameMatches.getTotal() > 0) {
+                return PageResult.of(nameMatches);
+            }
+        }
         if (StringUtils.hasText(keyword) && esUsable()) {
             try {
                 EsPage ep = esSearch(DoctorDoc.class, keyword, DOCTOR_FIELDS, pageNum, pageSize, DoctorDoc::getId);
@@ -178,7 +187,7 @@ public class SearchService {
     private boolean esUsable() {
         Boolean up = esUp;
         // 已判定不可用，但超过重探间隔则清空状态，下面重新探活（ES 恢复后无需重启即可自愈）
-        if (Boolean.FALSE.equals(up) && System.currentTimeMillis() - esDownAtMs > ES_RETRY_INTERVAL_MS) {
+        if (Boolean.FALSE.equals(up) && System.currentTimeMillis() - esDownAtMs > props.getSearch().getEsRetryIntervalMs()) {
             esUp = null;
             up = null;
         }

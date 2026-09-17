@@ -5,6 +5,7 @@ import com.hospital.common.context.UserContext;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.result.Result;
 import com.hospital.common.result.ResultCode;
+import com.hospital.config.props.HospitalProperties;
 import com.hospital.dto.order.PayCreateDTO;
 import com.hospital.service.PaymentService;
 import com.hospital.vo.PayInfoVO;
@@ -14,8 +15,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,6 +32,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PayController {
     private final PaymentService paymentService;
+    private final HospitalProperties properties;
 
     @Operation(summary = "发起支付宝支付")
     @PostMapping("/create")
@@ -45,16 +52,18 @@ public class PayController {
     }
 
     @Operation(summary = "支付宝浏览器同步返回")
-    @GetMapping(value = "/alipay/return", produces = "text/html;charset=UTF-8")
-    public String alipayReturn(HttpServletRequest request) {
+    @GetMapping("/alipay/return")
+    public ResponseEntity<Void> alipayReturn(HttpServletRequest request) {
         boolean paid = false;
+        String orderNo = null;
         try {
-            paid = paymentService.handleAlipayReturn(singleParams(request));
+            Map<String, String> params = singleParams(request);
+            orderNo = params.get("out_trade_no");
+            paid = paymentService.handleAlipayReturn(params);
         } catch (RuntimeException e) {
             log.warn("支付宝返回查单失败 type={}", e.getClass().getSimpleName());
         }
-        String message = paid ? "支付结果已确认，请返回订单页查看最新状态。" : "暂未确认支付结果，请返回订单页查询，勿重复付款。";
-        return "<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\"><title>支付结果</title><body><p>" + message + "</p></body></html>";
+        return ResponseEntity.status(HttpStatus.FOUND).location(frontendResultUri(orderNo, paid)).build();
     }
 
     @Operation(summary = "查询并同步支付宝支付结果（需订单本人登录）")
@@ -84,5 +93,24 @@ public class PayController {
         if (orderNo != null && orderNo.startsWith("ZX")) return OrderStatus.BIZ_CONSULT;
         if (orderNo != null && orderNo.startsWith("GH")) return OrderStatus.BIZ_APPOINTMENT;
         throw new BusinessException(ResultCode.PARAM_ERROR, "未知业务订单号");
+    }
+
+    private URI frontendResultUri(String orderNo, boolean paid) {
+        String page;
+        if (StringUtils.hasText(orderNo) && orderNo.startsWith("ZX")) {
+            page = "my-consult.html";
+        } else if (StringUtils.hasText(orderNo) && orderNo.startsWith("GH")) {
+            page = "my-appointment.html";
+        } else {
+            page = "index.html";
+        }
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromUriString(properties.getFrontendBaseUrl())
+                .pathSegment(page)
+                .queryParam("payment", paid ? "success" : "pending");
+        if (StringUtils.hasText(orderNo) && !"index.html".equals(page)) {
+            builder.queryParam("orderNo", orderNo);
+        }
+        return builder.build().encode().toUri();
     }
 }

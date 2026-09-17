@@ -15,6 +15,10 @@ public class ConsultVO implements Serializable {
     private String orderNo;
     private Long doctorId;
     private String doctorName;
+    private String doctorTitle;
+    private String departmentName;
+    private String hospitalName;
+    private String doctorAvatar;
     private String patientName;
     private String patientPhone;
     private String diseaseDesc;

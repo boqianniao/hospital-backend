@@ -8,12 +8,12 @@
 在 `hospital-backend` 目录执行：
 
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=alipay-local
+mvn spring-boot:run
 ```
 
-IntelliJ 的工作目录设为 `hospital-backend`，Active profiles 填 `alipay-local`。
+IntelliJ 的工作目录设为 `hospital-backend`，直接运行主类即可；`application.yml` 已把 `alipay-local` 设为默认 Profile。
 本机凭证保存在 `config/application-alipay-local.yml`，文件权限 600，已被 Git 忽略，且不在 Maven resources 中，不会打进 JAR。
-默认不加载这个 profile 时支付宝和模拟支付均关闭；若开启支付宝而缺少必要配置，启动直接失败。
+其他机器没有这份本机文件时，支付宝和模拟支付仍默认关闭；若通过环境变量开启支付宝而缺少必要配置，启动直接失败。
 
 其他机器使用环境变量配置：
 
@@ -27,6 +27,7 @@ IntelliJ 的工作目录设为 `hospital-backend`，Active profiles 填 `alipay-
 | `ALIPAY_PUBLIC_KEY` | 支付宝公钥，不是应用公钥 |
 | `ALIPAY_NOTIFY_URL` | 公网可达的后端 `/api/pay/alipay/notify`，本机默认为空 |
 | `ALIPAY_RETURN_URL` | 浏览器返回地址，默认 `http://localhost:8080/api/pay/alipay/return` |
+| `FRONTEND_BASE_URL` | 支付完成后的前端地址，默认 `http://localhost:5500` |
 | `ALIPAY_MOCK_ENABLED` | 默认 `false`；仅在支付宝关闭且该值为 `true` 时允许模拟支付 |
 
 本机 profile 中的应用信息是实际本机配置；切换应用时更新本地文件，或者不启用此 profile 并使用上述环境变量。
@@ -42,8 +43,8 @@ IntelliJ 的工作目录设为 `hospital-backend`，Active profiles 填 `alipay-
 
 3. 响应的 `data.mock` 为 `false`，`data.payForm` 为支付宝签名表单。前端应将表单展示在支付窗口并提交其中的 form 跳转支付宝；仅用 `innerHTML` 插入时不会自动执行 script，需要主动提交表单。当前仅支持支付宝，传微信方式会拒绝。
 4. 使用沙箱买家账号完成支付，账号信息可在控制台「沙箱账号」查看。
-5. 支付后浏览器回到后端同步返回页：先验证签名和 APPID，再调用支付宝查单确认金额和交易状态。页面只展示结果提示，不回显回调参数。
-6. 原订单页可带登录 token 调用 `POST /api/pay/query`，请求体同下单。`data=true` 表示已确认该订单支付成功；`false` 表示未确认支付或订单已取消，支付宝调用异常则返回支付错误。确认后重新读取订单详情。
+5. 支付后浏览器先回到后端同步返回接口：后端验证签名和 APPID，再调用支付宝查单确认金额和交易状态。确认完成后，咨询订单重定向到“我的咨询”，挂号订单重定向到“我的挂号”；未确认的交易也回到对应订单页并携带 `payment=pending`。
+6. 订单页可带登录 token 调用 `POST /api/pay/query`，请求体同下单。`data=true` 表示已确认该订单支付成功；`false` 表示未确认支付或订单已取消，支付宝调用异常则返回支付错误。确认后重新读取订单详情。
 
 若配置公网通知地址，支付宝会向 `POST /api/pay/alipay/notify` 推送表单通知。后端检查 RSA2 签名、APPID、商家 PID、商户订单号、交易号及金额，仅在成功状态下更新订单与流水。响应是纯文本 `success` 或 `failure`；失败让支付宝继续重试。通知和同步返回路径无需登录，其余支付接口要求登录并检查订单归属。
 
@@ -71,7 +72,8 @@ mvn -Dalipay.sandbox.smoke=true -Dtest=AlipaySandboxSmokeTest test
 
 ## 当前联调边界
 
-仓库内 `reservation-pay.html` 和 `consult-pay.html` 的支付按钮仍直接跳转静态成功页，尚未调用后端支付接口。此次实现范围是后端；前端需要按上述接口流程接线，不能把静态成功页当作已支付证明。
-完整的「业务下单 → 沙箱买家付款 → 通知/查单 → 数据库已支付 → 退款」仍需端到端联调确认。
+仓库内 `reservation-pay.html` 和 `consult-pay.html` 已调用后端支付接口并提交支付宝签名表单。支付宝同步返回由后端验签、查单并更新本地订单，然后按订单类型跳回前端订单页；前端通过绿色或橙色提示区分“已确认支付”和“暂未确认”。
+
+本机默认跳转到 `http://localhost:5500`。使用其他前端地址时必须配置 `FRONTEND_BASE_URL`，否则支付完成后会跳到未启动的端口。完整的「业务下单 → 沙箱买家付款 → 数据库已支付 → 取消退款」仍应在目标环境用沙箱买家账号做端到端回归。
 
 参考：[支付宝沙箱控制台](https://open.alipay.com/develop/sandbox/app)、[支付宝 EasySDK API 文档](https://github.com/alipay/alipay-easysdk/blob/master/APIDoc.md)。

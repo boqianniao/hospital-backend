@@ -1,5 +1,6 @@
 package com.hospital.service;
 
+import com.hospital.config.props.HospitalProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -16,9 +17,7 @@ import java.util.function.Supplier;
 public class CacheService {
 
     private final RedisTemplate<String, Object> redisTemplate;
-
-    /** 默认详情缓存时长：30 分钟 */
-    private static final long DEFAULT_TTL_SECONDS = 1800;
+    private final HospitalProperties props;
 
     /**
      * cache-aside：先读缓存，命中直接返回；未命中回源并写缓存。
@@ -39,7 +38,7 @@ public class CacheService {
         T value = loader.get();
         if (value != null) {
             try {
-                redisTemplate.opsForValue().set(key, value, DEFAULT_TTL_SECONDS, TimeUnit.SECONDS);
+                redisTemplate.opsForValue().set(key, value, props.getCache().getDetailTtlSeconds(), TimeUnit.SECONDS);
             } catch (Exception ignore) {
                 // 写缓存失败不影响返回
             }

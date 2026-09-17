@@ -35,6 +35,8 @@ public class ReviewService {
     private final AppointmentMapper appointmentMapper;
     private final ConsultMapper consultMapper;
     private final DoctorMapper doctorMapper;
+    private final DepartmentMapper departmentMapper;
+    private final HospitalMapper hospitalMapper;
     private final UserMapper userMapper;
     private final CacheService cacheService;
 
@@ -114,11 +116,22 @@ public class ReviewService {
         }
         List<Long> docIds = list.stream().map(Review::getDoctorId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
         List<Long> userIds = list.stream().map(Review::getUserId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
-        Map<Long, String> docNames = docIds.isEmpty() ? Collections.emptyMap()
-                : doctorMapper.selectBatchIds(docIds).stream().collect(Collectors.toMap(Doctor::getId, Doctor::getName, (a, b) -> a));
+        Map<Long, Doctor> doctors = docIds.isEmpty() ? Collections.emptyMap()
+                : doctorMapper.selectBatchIds(docIds).stream().collect(Collectors.toMap(Doctor::getId, d -> d, (a, b) -> a));
+        List<Long> departmentIds = doctors.values().stream().map(Doctor::getDepartmentId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        List<Long> hospitalIds = doctors.values().stream().map(Doctor::getHospitalId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        Map<Long, String> departmentNames = departmentIds.isEmpty() ? Collections.emptyMap()
+                : departmentMapper.selectBatchIds(departmentIds).stream()
+                .collect(Collectors.toMap(Department::getId, Department::getName, (a, b) -> a));
+        Map<Long, String> hospitalNames = hospitalIds.isEmpty() ? Collections.emptyMap()
+                : hospitalMapper.selectBatchIds(hospitalIds).stream()
+                .collect(Collectors.toMap(Hospital::getId, Hospital::getName, (a, b) -> a));
         Map<Long, String> userNames = userIds.isEmpty() ? Collections.emptyMap()
                 : userMapper.selectBatchIds(userIds).stream().collect(Collectors.toMap(User::getId, u -> mask(u.getUsername()), (a, b) -> a));
         return list.stream().map(r -> {
+            Doctor doctor = doctors.get(r.getDoctorId());
             ReviewVO vo = new ReviewVO();
             vo.setId(r.getId());
             vo.setOrderType(r.getOrderType());
@@ -126,7 +139,13 @@ public class ReviewService {
             vo.setUserId(r.getUserId());
             vo.setUserName(userNames.get(r.getUserId()));
             vo.setDoctorId(r.getDoctorId());
-            vo.setDoctorName(docNames.get(r.getDoctorId()));
+            if (doctor != null) {
+                vo.setDoctorName(doctor.getName());
+                vo.setDoctorTitle(doctor.getTitle());
+                vo.setDoctorAvatar(doctor.getAvatar());
+                vo.setDepartmentName(departmentNames.get(doctor.getDepartmentId()));
+                vo.setHospitalName(hospitalNames.get(doctor.getHospitalId()));
+            }
             vo.setRating(r.getRating());
             vo.setContent(r.getContent());
             vo.setCreateTime(r.getCreateTime());

@@ -16,8 +16,12 @@ public class AppointmentVO implements Serializable {
     private String orderNo;
     private Long doctorId;
     private String doctorName;
+    private String doctorTitle;
+    private String departmentName;
+    private String doctorAvatar;
     private Long hospitalId;
     private String hospitalName;
+    private String hospitalImage;
     private String patientName;
     private String patientPhone;
     private String patientIdCard;

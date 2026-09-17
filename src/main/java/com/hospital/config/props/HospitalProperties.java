@@ -17,6 +17,9 @@ public class HospitalProperties {
     private Alipay alipay = new Alipay();
     private Oss oss = new Oss();
     private Order order = new Order();
+    private Cache cache = new Cache();
+    private Search search = new Search();
+    private String frontendBaseUrl = "http://localhost:5500";
 
     @Data
     public static class Jwt {
@@ -65,5 +68,27 @@ public class HospitalProperties {
     @Data
     public static class Order {
         private int timeoutMinutes = 15;
+        /** 超时订单扫描周期（毫秒），OrderTimeoutTask 轮询间隔 */
+        private long timeoutScanMs = 60000;
+    }
+
+    @Data
+    public static class Cache {
+        /** 详情类缓存默认时长（秒） */
+        private long detailTtlSeconds = 1800;
+    }
+
+    @Data
+    public static class Search {
+        /** ES 判定不可用后重新探活的最小间隔（毫秒） */
+        private long esRetryIntervalMs = 60000;
+        /** 每个用户保留的搜索历史条数上限 */
+        private int historyMax = 20;
+        /** 搜索历史过期天数 */
+        private long historyTtlDays = 30;
+        /** 热搜默认返回条数 */
+        private int hotDefaultLimit = 10;
+        /** 热搜单次返回条数上限 */
+        private int hotMaxLimit = 50;
     }
 }

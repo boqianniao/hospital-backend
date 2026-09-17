@@ -39,6 +39,7 @@ public class AppointmentService {
     private final AppointmentMapper appointmentMapper;
     private final ScheduleMapper scheduleMapper;
     private final DoctorMapper doctorMapper;
+    private final DepartmentMapper departmentMapper;
     private final HospitalMapper hospitalMapper;
     private final FamilyMemberMapper familyMemberMapper;
     private final StockService stockService;
@@ -92,7 +93,9 @@ public class AppointmentService {
         notificationService.push(userId, "挂号下单成功",
                 String.format("您已成功预约 %s %s 的号源，请在%d分钟内完成支付。",
                         doctor.getName(), schedule.getTimeSlot(), props.getOrder().getTimeoutMinutes()));
-        return toVO(order, doctor.getName(), hospitalName(order.getHospitalId()));
+        Hospital hospital = order.getHospitalId() == null ? null : hospitalMapper.selectById(order.getHospitalId());
+        Department department = doctor.getDepartmentId() == null ? null : departmentMapper.selectById(doctor.getDepartmentId());
+        return toVO(order, doctor, hospital, department == null ? null : department.getName());
     }
 
     /** 我的挂号（可按状态过滤） */
@@ -227,28 +230,39 @@ public class AppointmentService {
         }
         List<Long> docIds = list.stream().map(Appointment::getDoctorId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
         List<Long> hospIds = list.stream().map(Appointment::getHospitalId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
-        Map<Long, String> docNames = docIds.isEmpty() ? Collections.emptyMap()
-                : doctorMapper.selectBatchIds(docIds).stream().collect(Collectors.toMap(Doctor::getId, Doctor::getName, (a, b) -> a));
-        Map<Long, String> hospNames = hospIds.isEmpty() ? Collections.emptyMap()
-                : hospitalMapper.selectBatchIds(hospIds).stream().collect(Collectors.toMap(Hospital::getId, Hospital::getName, (a, b) -> a));
+        Map<Long, Doctor> doctors = docIds.isEmpty() ? Collections.emptyMap()
+                : doctorMapper.selectBatchIds(docIds).stream().collect(Collectors.toMap(Doctor::getId, d -> d, (a, b) -> a));
+        Map<Long, Hospital> hospitals = hospIds.isEmpty() ? Collections.emptyMap()
+                : hospitalMapper.selectBatchIds(hospIds).stream().collect(Collectors.toMap(Hospital::getId, h -> h, (a, b) -> a));
+        List<Long> deptIds = doctors.values().stream().map(Doctor::getDepartmentId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        Map<Long, String> departmentNames = deptIds.isEmpty() ? Collections.emptyMap()
+                : departmentMapper.selectBatchIds(deptIds).stream()
+                .collect(Collectors.toMap(Department::getId, Department::getName, (a, b) -> a));
         return list.stream()
-                .map(o -> toVO(o, docNames.get(o.getDoctorId()), hospNames.get(o.getHospitalId())))
+                .map(o -> {
+                    Doctor doctor = doctors.get(o.getDoctorId());
+                    return toVO(o, doctor, hospitals.get(o.getHospitalId()),
+                            doctor == null ? null : departmentNames.get(doctor.getDepartmentId()));
+                })
                 .collect(Collectors.toList());
     }
 
-    private AppointmentVO toVO(Appointment o, String doctorName, String hospitalName) {
+    private AppointmentVO toVO(Appointment o, Doctor doctor, Hospital hospital, String departmentName) {
         AppointmentVO vo = new AppointmentVO();
         BeanUtil.copyProperties(o, vo);
-        vo.setDoctorName(doctorName);
-        vo.setHospitalName(hospitalName);
+        if (doctor != null) {
+            vo.setDoctorName(doctor.getName());
+            vo.setDoctorTitle(doctor.getTitle());
+            vo.setDoctorAvatar(doctor.getAvatar());
+        }
+        vo.setDepartmentName(departmentName);
+        if (hospital != null) {
+            vo.setHospitalName(hospital.getName());
+            vo.setHospitalImage(hospital.getImage());
+        }
         vo.setStatusText(OrderStatus.appointmentText(o.getStatus()));
         return vo;
-    }
-
-    private String hospitalName(Long hospitalId) {
-        if (hospitalId == null) return null;
-        Hospital h = hospitalMapper.selectById(hospitalId);
-        return h == null ? null : h.getName();
     }
 
     private int safe(Integer i) {

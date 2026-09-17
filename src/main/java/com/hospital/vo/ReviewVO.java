@@ -17,6 +17,10 @@ public class ReviewVO {
     private String userName;
     private Long doctorId;
     private String doctorName;
+    private String doctorTitle;
+    private String doctorAvatar;
+    private String departmentName;
+    private String hospitalName;
     private Integer rating;
     private String content;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

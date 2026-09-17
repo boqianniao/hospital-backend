@@ -10,6 +10,7 @@ import com.hospital.entity.Doctor;
 import com.hospital.entity.Hospital;
 import com.hospital.entity.Schedule;
 import com.hospital.mapper.AppointmentMapper;
+import com.hospital.mapper.DepartmentMapper;
 import com.hospital.mapper.DoctorMapper;
 import com.hospital.mapper.FamilyMemberMapper;
 import com.hospital.mapper.HospitalMapper;
@@ -31,6 +32,7 @@ class AppointmentServiceTest {
     AppointmentMapper appointmentMapper = mock(AppointmentMapper.class);
     ScheduleMapper scheduleMapper = mock(ScheduleMapper.class);
     DoctorMapper doctorMapper = mock(DoctorMapper.class);
+    DepartmentMapper departmentMapper = mock(DepartmentMapper.class);
     HospitalMapper hospitalMapper = mock(HospitalMapper.class);
     FamilyMemberMapper familyMemberMapper = mock(FamilyMemberMapper.class);
     StockService stockService = mock(StockService.class);
@@ -45,7 +47,7 @@ class AppointmentServiceTest {
 
     @BeforeEach
     void setup() {
-        service = new AppointmentService(appointmentMapper, scheduleMapper, doctorMapper, hospitalMapper,
+        service = new AppointmentService(appointmentMapper, scheduleMapper, doctorMapper, departmentMapper, hospitalMapper,
                 familyMemberMapper, stockService, paymentService, notificationService, doctorService, props);
         schedule = new Schedule();
         schedule.setId(10L);
