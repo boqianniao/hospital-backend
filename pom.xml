@@ -24,6 +24,7 @@
         <hutool.version>5.8.34</hutool.version>
         <knife4j.version>4.5.0</knife4j.version>
         <alipay-easysdk.version>2.2.3</alipay-easysdk.version>
+        <dypnsapi.version>1.2.3</dypnsapi.version>
     </properties>
 
     <dependencies>
@@ -104,6 +105,13 @@
             <groupId>com.alipay.sdk</groupId>
             <artifactId>alipay-easysdk</artifactId>
             <version>${alipay-easysdk.version}</version>
+        </dependency>
+
+        <!-- 阿里云短信验证码（号码认证服务 dypnsapi SendSmsVerifyCode；未配置凭证时走短信桩） -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>dypnsapi20170525</artifactId>
+            <version>${dypnsapi.version}</version>
         </dependency>
 
         <!-- 密码加密 BCrypt（spring-security-crypto，仅用加密工具不引入完整安全框架） -->

@@ -30,11 +30,11 @@ spring:
           max-active: 16
           max-idle: 8
           min-idle: 2
-  # ---- Elasticsearch（搜索）。未部署时应用仍可启动，检索接口降级 ----
+  # ---- Elasticsearch（搜索）。不可用时应用仍可启动，检索接口自动降级 DB ----
   elasticsearch:
-    uris: ${ES_URIS:http://103.236.92.40:9200}
-    username: ${ES_USERNAME:}
-    password: ${ES_PASSWORD:}
+    uris: ${ES_URIS:http://103.236.92.40:41324}
+    username: ${ES_USERNAME:elastic}
+    password: ${ES_PASSWORD:NexaMind2026}
     connection-timeout: 3s
     socket-timeout: 5s
   servlet:
@@ -72,11 +72,17 @@ hospital:
     expire-seconds: ${JWT_EXPIRE:604800}
     # 请求头名称（与前端 auth-interceptor.js 约定一致）
     header: token
-  # 短信验证码（桩：打印到日志；后续接真实短信服务）
+  # 短信验证码（阿里云号码认证服务 dypnsapi SendSmsVerifyCode；enabled=false 或凭证缺失时走日志桩）
   sms:
-    enabled: false
+    enabled: ${SMS_ENABLED:true}
     code-expire-seconds: 300
     code-length: 6
+    access-key-id: ${SMS_ACCESS_KEY_ID:LTAI5t5oDBBSo7R6x2eBD1EP}
+    access-key-secret: ${SMS_ACCESS_KEY_SECRET:VSYdy3qxzc93MyiXxcxm3slMJ45aMe}
+    endpoint: ${SMS_ENDPOINT:dypnsapi.aliyuncs.com}
+    # 签名与模板需为阿里云控制台审核通过的值
+    sign-name: ${SMS_SIGN_NAME:速通互联验证码}
+    template-code: ${SMS_TEMPLATE_CODE:100001}
   # 支付宝沙箱（桩：后续填入真实配置并启用）
   alipay:
     enabled: false

@@ -30,6 +30,14 @@ public class HospitalProperties {
         private boolean enabled = false;
         private int codeExpireSeconds = 300;
         private int codeLength = 6;
+        /** 阿里云号码认证服务（dypnsapi）配置 */
+        private String accessKeyId;
+        private String accessKeySecret;
+        private String endpoint = "dypnsapi.aliyuncs.com";
+        /** 短信签名名称（控制台审核通过） */
+        private String signName;
+        /** 短信模板 CODE（控制台审核通过） */
+        private String templateCode;
     }
 
     @Data
