@@ -48,7 +48,11 @@
   ⚠️ 签名 `速通互联验证码` / 模板 `100001` 取自参考文件，需确认为阿里云控制台**审核通过**的值，
   否则真实发送会失败（可用环境变量 `SMS_SIGN_NAME` / `SMS_TEMPLATE_CODE` 覆盖）。
   真实发送为计费的对外操作，尚未触发实测（需指定手机号）。
-- [ ] **A5 🟡 对象存储 OSS**：`hospital.oss.enabled: false` 为桩，图片上传/存储未接入。
+- [x] **A5 ✅ 对象存储 OSS 已接入**：阿里云 OSS（bucket `sk-itcase`，endpoint
+  `oss-cn-beijing.aliyuncs.com`，依赖 `com.aliyun.oss:aliyun-sdk-oss`）。
+  `OssService`（enabled 且凭证齐全才初始化）+ 上传接口 `POST /api/files/upload`（需登录，参数 file、可选 dir）。
+  已实测上传返回 URL 且公网 GET 200：`https://sk-itcase.oss-cn-beijing.aliyuncs.com/test/202609/...txt`。
+  注：测试对象 `test/202609/e5bf3e693e374612b30b37c159c2222e.txt` 可在 OSS 控制台删除。
 
 ### B. 代码收尾（开发范畴）
 
