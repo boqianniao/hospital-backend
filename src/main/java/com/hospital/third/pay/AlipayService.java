@@ -2,6 +2,9 @@ package com.hospital.third.pay;
 
 import com.alipay.easysdk.factory.Factory;
 import com.alipay.easysdk.kernel.Config;
+import com.alipay.easysdk.payment.common.models.AlipayTradeQueryResponse;
+import com.hospital.common.exception.BusinessException;
+import com.hospital.common.result.ResultCode;
 import com.hospital.config.props.HospitalProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -10,100 +13,125 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.net.URI;
+import java.security.KeyFactory;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.Map;
 
-/**
- * 支付宝沙箱封装（EasySDK）。
- * 仅当 hospital.alipay.enabled=true 且 appId/应用私钥/支付宝公钥齐全时才初始化；
- * 否则 isReady()=false，上层支付逻辑走本地支付桩，保证凭证留空时应用照常启动。
- */
+/** 支付宝 RSA2 公钥模式接入。启用失败时拒绝支付，不降级到模拟支付。 */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AlipayService {
-
     private final HospitalProperties props;
-
-    /** 是否已完成 SDK 初始化并可发起真实支付宝调用 */
-    private volatile boolean ready = false;
+    private volatile boolean ready;
 
     @PostConstruct
     public void init() {
-        HospitalProperties.Alipay cfg = props.getAlipay();
-        if (!cfg.isEnabled()) {
-            log.info("[ALIPAY] 未启用，支付走本地桩（hospital.alipay.enabled=false）");
-            return;
+        ready = false;
+        var cfg = props.getAlipay();
+        if (!cfg.isEnabled()) return;
+        if (!StringUtils.hasText(cfg.getAppId()) || !StringUtils.hasText(cfg.getSellerId())
+                || !StringUtils.hasText(cfg.getAppPrivateKey()) || !StringUtils.hasText(cfg.getAlipayPublicKey())) {
+            throw new IllegalStateException("支付宝已启用，请配置 app-id、seller-id、app-private-key、alipay-public-key");
         }
-        if (!StringUtils.hasText(cfg.getAppId())
-                || !StringUtils.hasText(cfg.getAppPrivateKey())
-                || !StringUtils.hasText(cfg.getAlipayPublicKey())) {
-            log.warn("[ALIPAY] 已启用但凭证不完整，降级为支付桩。请补齐 app-id / app-private-key / alipay-public-key");
-            return;
-        }
+        URI gateway = httpUrl(cfg.getGateway(), "gateway");
+        if (!"https".equals(gateway.getScheme())) throw new IllegalStateException("支付宝网关必须使用 HTTPS");
+        httpUrl(cfg.getReturnUrl(), "return-url");
+        if (StringUtils.hasText(cfg.getNotifyUrl())) httpUrl(cfg.getNotifyUrl(), "notify-url");
         Config config = new Config();
         config.protocol = "https";
-        config.gatewayHost = resolveHost(cfg.getGateway());
+        config.gatewayHost = gateway.getHost();
         config.signType = "RSA2";
         config.appId = cfg.getAppId();
-        config.merchantPrivateKey = cfg.getAppPrivateKey();
-        config.alipayPublicKey = cfg.getAlipayPublicKey();
-        config.notifyUrl = cfg.getNotifyUrl();
-        Factory.setOptions(config);
-        ready = true;
-        log.info("[ALIPAY] 沙箱初始化完成 gatewayHost={} appId={}", config.gatewayHost, config.appId);
-    }
-
-    public boolean isReady() {
-        return ready;
-    }
-
-    /**
-     * PC 网页支付：返回自动提交的 HTML 表单，前端直接写入页面即可跳转收银台。
-     * 失败返回 null，由上层降级处理。
-     */
-    public String pagePay(String subject, String outTradeNo, String totalAmount, String returnUrl) {
+        config.merchantPrivateKey = normalizeKey(cfg.getAppPrivateKey());
+        config.alipayPublicKey = normalizeKey(cfg.getAlipayPublicKey());
+        config.notifyUrl = StringUtils.hasText(cfg.getNotifyUrl()) ? cfg.getNotifyUrl() : null;
         try {
-            return Factory.Payment.Page().pay(subject, outTradeNo, totalAmount, returnUrl).getBody();
+            KeyFactory keys = KeyFactory.getInstance("RSA");
+            keys.generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(config.merchantPrivateKey)));
+            keys.generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(config.alipayPublicKey)));
+            Factory.setOptions(config);
         } catch (Exception e) {
-            log.error("[ALIPAY] 网页下单失败 outTradeNo={}: {}", outTradeNo, e.getMessage(), e);
-            return null;
+            throw new IllegalStateException("支付宝 RSA2 密钥格式错误，请使用 JAVA/PKCS8 应用私钥和支付宝公钥");
+        }
+        ready = true;
+        log.info("[ALIPAY] 初始化完成 gatewayHost={} appId={}", config.gatewayHost, config.appId);
+    }
+
+    public boolean isReady() { return ready; }
+
+    public boolean isMockEnabled() {
+        return !props.getAlipay().isEnabled() && props.getAlipay().isMockEnabled();
+    }
+
+    public String pagePay(String subject, String outTradeNo, String totalAmount, String returnUrl) {
+        requireReady();
+        try {
+            String body = Factory.Payment.Page()
+                    .optional("timeout_express", props.getOrder().getTimeoutMinutes() + "m")
+                    .pay(subject, outTradeNo, totalAmount, returnUrl).getBody();
+            if (!StringUtils.hasText(body)) throw new IllegalStateException("empty response");
+            return body;
+        } catch (Exception e) {
+            log.warn("[ALIPAY] 网页支付生成失败 type={}", e.getClass().getSimpleName());
+            throw new BusinessException(ResultCode.PAY_ERROR, "支付宝下单失败，请稍后重试");
         }
     }
 
-    /** 异步回调验签 */
     public boolean verifyNotify(Map<String, String> params) {
+        if (!ready || !"RSA2".equals(params.get("sign_type")) || !StringUtils.hasText(params.get("sign"))
+                || !props.getAlipay().getAppId().equals(params.get("app_id"))) return false;
         try {
             return Boolean.TRUE.equals(Factory.Payment.Common().verifyNotify(params));
         } catch (Exception e) {
-            log.error("[ALIPAY] 回调验签异常: {}", e.getMessage());
             return false;
         }
     }
 
-    /** 退款；成功返回 true */
-    public boolean refund(String outTradeNo, String refundAmount) {
+    /** 查单响应由 SDK 验签，交易不存在返回未支付，其他业务错误不当成未支付。 */
+    public AlipayTradeQueryResponse query(String orderNo) {
+        requireReady();
         try {
-            Factory.Payment.Common().refund(outTradeNo, refundAmount);
-            return true;
-        } catch (Exception e) {
-            log.error("[ALIPAY] 退款失败 outTradeNo={}: {}", outTradeNo, e.getMessage());
-            return false;
-        }
-    }
-
-    /** EasySDK 的 gatewayHost 只需主机名；兼容配置里写完整 URL 的情况 */
-    private String resolveHost(String gateway) {
-        if (!StringUtils.hasText(gateway)) {
-            return "openapi.alipay.com";
-        }
-        try {
-            if (gateway.contains("://")) {
-                String host = URI.create(gateway).getHost();
-                return StringUtils.hasText(host) ? host : gateway;
+            var response = Factory.Payment.Common().query(orderNo);
+            if ("40004".equals(response.getCode()) && "ACQ.TRADE_NOT_EXIST".equals(response.getSubCode())) return null;
+            if (!"10000".equals(response.getCode()) || !orderNo.equals(response.getOutTradeNo())) {
+                throw new IllegalStateException("query rejected");
             }
-        } catch (Exception ignore) {
-            // 配置非标准 URL，原样使用
+            return response;
+        } catch (Exception e) {
+            log.warn("[ALIPAY] 查询失败 type={}", e.getClass().getSimpleName());
+            throw new BusinessException(ResultCode.PAY_ERROR, "支付宝查单失败，请稍后重试");
         }
-        return gateway;
+    }
+
+    public boolean refund(String outTradeNo, String refundAmount) {
+        requireReady();
+        try {
+            var response = Factory.Payment.Common().optional("out_request_no", "REFUND_" + outTradeNo)
+                    .refund(outTradeNo, refundAmount);
+            return "10000".equals(response.getCode());
+        } catch (Exception e) {
+            log.warn("[ALIPAY] 退款失败 type={}", e.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private void requireReady() {
+        if (!ready) throw new BusinessException(ResultCode.PAY_ERROR, "支付宝支付未启用");
+    }
+
+    private static String normalizeKey(String key) {
+        return key.replaceAll("-----BEGIN [A-Z ]+-----|-----END [A-Z ]+-----|\\s", "");
+    }
+
+    private static URI httpUrl(String value, String field) {
+        try {
+            URI uri = URI.create(value);
+            if (uri.getHost() != null && uri.getUserInfo() == null
+                    && ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme()))) return uri;
+        } catch (Exception ignored) { }
+        throw new IllegalStateException("支付宝 " + field + " 必须是完整的 HTTP(S) 地址");
     }
 }

@@ -112,7 +112,7 @@ public class AppointmentService {
     /** 取消挂号：待支付直接取消并释放号源；已支付退款并释放号源 */
     @Transactional(rollbackFor = Exception.class)
     public void cancel(Long userId, Long id) {
-        Appointment order = getOwned(userId, id);
+        Appointment order = getOwnedForUpdate(userId, id);
         Integer st = order.getStatus();
         if (st == null || st == OrderStatus.APPT_DONE || st == OrderStatus.APPT_CANCELLED) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "该订单不可取消");
@@ -130,7 +130,7 @@ public class AppointmentService {
     /** 完成挂号：已支付 -> 已完成，医生接诊数+1 */
     @Transactional(rollbackFor = Exception.class)
     public void complete(Long userId, Long id) {
-        Appointment order = getOwned(userId, id);
+        Appointment order = getOwnedForUpdate(userId, id);
         if (order.getStatus() == null || order.getStatus() != OrderStatus.APPT_PAID) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "仅已支付订单可完成");
         }
@@ -146,7 +146,7 @@ public class AppointmentService {
     public int cancelTimeout(LocalDateTime deadline) {
         List<Appointment> list = appointmentMapper.selectList(Wrappers.<Appointment>lambdaQuery()
                 .eq(Appointment::getStatus, OrderStatus.APPT_UNPAID)
-                .lt(Appointment::getCreateTime, deadline));
+                .lt(Appointment::getCreateTime, deadline).last("for update"));
         for (Appointment order : list) {
             Appointment upd = new Appointment();
             upd.setId(order.getId());
@@ -160,6 +160,14 @@ public class AppointmentService {
     }
 
     // ---- 内部方法 ----
+
+    private Appointment getOwnedForUpdate(Long userId, Long id) {
+        Appointment order = appointmentMapper.selectOne(Wrappers.<Appointment>lambdaQuery()
+                .eq(Appointment::getId, id).last("for update"));
+        if (order == null) throw new BusinessException(ResultCode.ORDER_NOT_FOUND);
+        if (!order.getUserId().equals(userId)) throw new BusinessException(ResultCode.FORBIDDEN);
+        return order;
+    }
 
     private Appointment getOwned(Long userId, Long id) {
         Appointment order = appointmentMapper.selectById(id);

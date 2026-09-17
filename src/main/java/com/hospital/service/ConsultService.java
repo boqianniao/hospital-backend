@@ -82,7 +82,7 @@ public class ConsultService {
 
     @Transactional(rollbackFor = Exception.class)
     public void cancel(Long userId, Long id) {
-        Consult order = getOwned(userId, id);
+        Consult order = getOwnedForUpdate(userId, id);
         Integer st = order.getStatus();
         if (st == null || st == OrderStatus.CONSULT_DONE || st == OrderStatus.CONSULT_CANCELLED) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "该订单不可取消");
@@ -98,7 +98,7 @@ public class ConsultService {
 
     @Transactional(rollbackFor = Exception.class)
     public void complete(Long userId, Long id) {
-        Consult order = getOwned(userId, id);
+        Consult order = getOwnedForUpdate(userId, id);
         if (order.getStatus() == null
                 || (order.getStatus() != OrderStatus.CONSULT_PAID && order.getStatus() != OrderStatus.CONSULT_ING)) {
             throw new BusinessException(ResultCode.ORDER_STATUS_ERROR, "仅进行中/已支付订单可完成");
@@ -114,7 +114,7 @@ public class ConsultService {
     public int cancelTimeout(LocalDateTime deadline) {
         List<Consult> list = consultMapper.selectList(Wrappers.<Consult>lambdaQuery()
                 .eq(Consult::getStatus, OrderStatus.CONSULT_UNPAID)
-                .lt(Consult::getCreateTime, deadline));
+                .lt(Consult::getCreateTime, deadline).last("for update"));
         for (Consult order : list) {
             Consult upd = new Consult();
             upd.setId(order.getId());
@@ -127,6 +127,14 @@ public class ConsultService {
     }
 
     // ---- 内部方法 ----
+
+    private Consult getOwnedForUpdate(Long userId, Long id) {
+        Consult order = consultMapper.selectOne(Wrappers.<Consult>lambdaQuery()
+                .eq(Consult::getId, id).last("for update"));
+        if (order == null) throw new BusinessException(ResultCode.ORDER_NOT_FOUND);
+        if (!order.getUserId().equals(userId)) throw new BusinessException(ResultCode.FORBIDDEN);
+        return order;
+    }
 
     private Consult getOwned(Long userId, Long id) {
         Consult order = consultMapper.selectById(id);

@@ -43,6 +43,8 @@ public class HospitalProperties {
     @Data
     public static class Alipay {
         private boolean enabled = false;
+        private boolean mockEnabled = false;
+        private String sellerId;
         private String gateway;
         private String appId;
         private String appPrivateKey;

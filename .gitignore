@@ -20,3 +20,5 @@ Thumbs.db
 # ---- 本地覆盖配置（含密钥，不入库）----
 src/main/resources/application-local.yml
 src/main/resources/application-local.yaml
+
+config/application-alipay-local.yml

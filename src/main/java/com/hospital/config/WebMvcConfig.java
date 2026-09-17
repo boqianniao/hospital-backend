@@ -34,6 +34,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
             "/api/search/hot",
             "/api/reviews/doctor/**",
             "/api/pay/alipay/notify",
+            "/api/pay/alipay/return",
             "/api/common/**",
             // 接口文档
             "/doc.html", "/webjars/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-resources/**",
