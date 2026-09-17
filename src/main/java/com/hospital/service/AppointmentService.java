@@ -44,6 +44,7 @@ public class AppointmentService {
     private final StockService stockService;
     private final PaymentService paymentService;
     private final NotificationService notificationService;
+    private final DoctorService doctorService;
     private final HospitalProperties props;
 
     @Transactional(rollbackFor = Exception.class)
@@ -139,6 +140,7 @@ public class AppointmentService {
         upd.setStatus(OrderStatus.APPT_DONE);
         appointmentMapper.updateById(upd);
         doctorMapper.incrConsultCount(order.getDoctorId());
+        doctorService.evictCache(order.getDoctorId());
     }
 
     /** 超时未支付自动取消，返回取消数量（供定时任务调用） */

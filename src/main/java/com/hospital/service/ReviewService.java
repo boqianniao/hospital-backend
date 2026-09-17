@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hospital.common.constant.OrderStatus;
+import com.hospital.common.constant.RedisKeys;
 import com.hospital.common.exception.BusinessException;
 import com.hospital.common.result.PageResult;
 import com.hospital.common.result.ResultCode;
@@ -35,6 +36,7 @@ public class ReviewService {
     private final ConsultMapper consultMapper;
     private final DoctorMapper doctorMapper;
     private final UserMapper userMapper;
+    private final CacheService cacheService;
 
     @Transactional(rollbackFor = Exception.class)
     public ReviewVO submit(Long userId, ReviewDTO dto) {
@@ -62,6 +64,8 @@ public class ReviewService {
             upd.setId(doctorId);
             upd.setRating(BigDecimal.valueOf(avg));
             doctorMapper.updateById(upd);
+            // 评分变更后失效医生详情缓存，避免详情页展示旧评分
+            cacheService.evict(RedisKeys.doctor(doctorId));
         }
         return enrich(Collections.singletonList(review)).get(0);
     }

@@ -42,6 +42,7 @@ public class ConsultService {
     private final FamilyMemberMapper familyMemberMapper;
     private final PaymentService paymentService;
     private final NotificationService notificationService;
+    private final DoctorService doctorService;
 
     @Transactional(rollbackFor = Exception.class)
     public ConsultVO create(Long userId, ConsultCreateDTO dto) {
@@ -108,6 +109,7 @@ public class ConsultService {
         upd.setStatus(OrderStatus.CONSULT_DONE);
         consultMapper.updateById(upd);
         doctorMapper.incrConsultCount(order.getDoctorId());
+        doctorService.evictCache(order.getDoctorId());
     }
 
     @Transactional(rollbackFor = Exception.class)

@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.stream.Collectors;
 
@@ -54,6 +55,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public Result<Void> handleNotReadable(HttpMessageNotReadableException e) {
         return Result.fail(ResultCode.PARAM_ERROR.getCode(), "请求体格式错误");
+    }
+
+    /** 路径变量/查询参数类型不匹配（如 id、pageNum 传了非数字） */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public Result<Void> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        return Result.fail(ResultCode.PARAM_ERROR.getCode(), "参数格式错误: " + e.getName());
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

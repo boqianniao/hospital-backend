@@ -58,6 +58,10 @@ public class SearchService {
 
     /** ES 可用性缓存：null=未探测，true/false=已探测结果 */
     private volatile Boolean esUp;
+    /** ES 判定不可用的时间戳，用于按 TTL 自动重探 */
+    private volatile long esDownAtMs;
+    /** ES 不可用后重新探活的最小间隔（毫秒） */
+    private static final long ES_RETRY_INTERVAL_MS = 60_000L;
 
     // ---------------- 对外搜索 ----------------
 
@@ -132,7 +136,7 @@ public class SearchService {
                     articleMapper.selectList(null).stream().map(this::toDoc).collect(Collectors.toList()));
             return Map.of("success", true, "hospital", h, "doctor", d, "disease", s, "article", a);
         } catch (Exception e) {
-            esUp = false;
+            markEsDownState();
             log.error("重建 ES 索引失败: {}", e.getMessage(), e);
             return Map.of("success", false, "message", "重建失败: " + e.getMessage());
         }
@@ -173,6 +177,11 @@ public class SearchService {
 
     private boolean esUsable() {
         Boolean up = esUp;
+        // 已判定不可用，但超过重探间隔则清空状态，下面重新探活（ES 恢复后无需重启即可自愈）
+        if (Boolean.FALSE.equals(up) && System.currentTimeMillis() - esDownAtMs > ES_RETRY_INTERVAL_MS) {
+            esUp = null;
+            up = null;
+        }
         if (up != null) {
             return up;
         }
@@ -184,7 +193,7 @@ public class SearchService {
                 es.indexOps(HospitalDoc.class).exists();
                 esUp = Boolean.TRUE;
             } catch (Exception e) {
-                esUp = Boolean.FALSE;
+                markEsDownState();
                 log.warn("ES 探活失败，搜索降级为数据库查询: {}", e.getMessage());
             }
             return esUp;
@@ -192,8 +201,13 @@ public class SearchService {
     }
 
     private void markEsDown(String index, Exception e) {
-        esUp = Boolean.FALSE;
+        markEsDownState();
         log.warn("ES 查询[{}]失败，本次降级数据库: {}", index, e.getMessage());
+    }
+
+    private void markEsDownState() {
+        esUp = Boolean.FALSE;
+        esDownAtMs = System.currentTimeMillis();
     }
 
     /** 按 ES 命中的 id 顺序回源数据库并保持排序 */
