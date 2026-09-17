@@ -9,6 +9,9 @@ import com.hospital.entity.Doctor;
 import com.hospital.entity.Hospital;
 import com.hospital.service.SearchHistoryService;
 import com.hospital.service.SearchService;
+import com.hospital.service.SearchSuggestionService;
+import com.hospital.vo.SearchOverviewVO;
+import com.hospital.vo.SearchSuggestionVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,14 +28,25 @@ public class SearchController {
 
     private final SearchService searchService;
     private final SearchHistoryService searchHistoryService;
+    private final SearchSuggestionService searchSuggestionService;
+
+    @Operation(summary = "全站搜索")
+    @GetMapping("/all")
+    public Result<SearchOverviewVO> all(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") long pageNum,
+            @RequestParam(defaultValue = "10") long pageSize) {
+        return Result.success(searchService.searchAll(keyword, pageNum, pageSize));
+    }
 
     @Operation(summary = "医院搜索")
     @GetMapping("/hospitals")
     public Result<PageResult<Hospital>> hospitals(
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") long pageNum,
-            @RequestParam(defaultValue = "10") long pageSize) {
-        return Result.success(searchService.searchHospitals(keyword, pageNum, pageSize));
+            @RequestParam(defaultValue = "10") long pageSize,
+            @RequestParam(defaultValue = "true") boolean track) {
+        return Result.success(searchService.searchHospitals(keyword, pageNum, pageSize, track));
     }
 
     @Operation(summary = "医生搜索")
@@ -40,8 +54,9 @@ public class SearchController {
     public Result<PageResult<Doctor>> doctors(
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") long pageNum,
-            @RequestParam(defaultValue = "10") long pageSize) {
-        return Result.success(searchService.searchDoctors(keyword, pageNum, pageSize));
+            @RequestParam(defaultValue = "10") long pageSize,
+            @RequestParam(defaultValue = "true") boolean track) {
+        return Result.success(searchService.searchDoctors(keyword, pageNum, pageSize, track));
     }
 
     @Operation(summary = "疾病搜索")
@@ -49,8 +64,9 @@ public class SearchController {
     public Result<PageResult<Disease>> diseases(
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") long pageNum,
-            @RequestParam(defaultValue = "10") long pageSize) {
-        return Result.success(searchService.searchDiseases(keyword, pageNum, pageSize));
+            @RequestParam(defaultValue = "10") long pageSize,
+            @RequestParam(defaultValue = "true") boolean track) {
+        return Result.success(searchService.searchDiseases(keyword, pageNum, pageSize, track));
     }
 
     @Operation(summary = "文章搜索")
@@ -58,14 +74,23 @@ public class SearchController {
     public Result<PageResult<Article>> articles(
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") long pageNum,
-            @RequestParam(defaultValue = "10") long pageSize) {
-        return Result.success(searchService.searchArticles(keyword, pageNum, pageSize));
+            @RequestParam(defaultValue = "10") long pageSize,
+            @RequestParam(defaultValue = "true") boolean track) {
+        return Result.success(searchService.searchArticles(keyword, pageNum, pageSize, track));
     }
 
     @Operation(summary = "热门搜索词（公开）")
     @GetMapping("/hot")
     public Result<List<String>> hot(@RequestParam(required = false) Integer limit) {
         return Result.success(searchHistoryService.hotKeywords(limit));
+    }
+
+    @Operation(summary = "搜索联想词（公开）")
+    @GetMapping("/suggestions")
+    public Result<List<SearchSuggestionVO>> suggestions(
+            @RequestParam String keyword,
+            @RequestParam(required = false) Integer limit) {
+        return Result.success(searchSuggestionService.suggest(keyword, limit));
     }
 
     @Operation(summary = "我的搜索历史（需登录）")

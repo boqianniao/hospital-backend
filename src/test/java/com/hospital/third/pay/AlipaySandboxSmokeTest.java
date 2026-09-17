@@ -15,17 +15,17 @@ import static org.junit.jupiter.api.Assertions.*;
 class AlipaySandboxSmokeTest {
     @Test void sandboxCredentialsCanSignAndCallGateway() throws Exception {
         var yaml = new YamlPropertiesFactoryBean();
-        yaml.setResources(new FileSystemResource("config/application-alipay-local.yml"));
-        var local = yaml.getObject();
-        assertNotNull(local);
+        yaml.setResources(new FileSystemResource("src/main/resources/application.yml"));
+        var application = yaml.getObject();
+        assertNotNull(application);
         var props = new HospitalProperties();
         var cfg = props.getAlipay();
         cfg.setEnabled(true);
-        cfg.setAppId(local.getProperty("hospital.alipay.app-id"));
-        cfg.setSellerId(local.getProperty("hospital.alipay.seller-id"));
-        cfg.setAppPrivateKey(local.getProperty("hospital.alipay.app-private-key"));
-        cfg.setAlipayPublicKey(local.getProperty("hospital.alipay.alipay-public-key"));
-        cfg.setGateway(local.getProperty("hospital.alipay.gateway"));
+        cfg.setAppId(application.getProperty("hospital.alipay.app-id"));
+        cfg.setSellerId(application.getProperty("hospital.alipay.seller-id"));
+        cfg.setAppPrivateKey(application.getProperty("hospital.alipay.app-private-key"));
+        cfg.setAlipayPublicKey(application.getProperty("hospital.alipay.alipay-public-key"));
+        cfg.setGateway(application.getProperty("hospital.alipay.gateway"));
         cfg.setReturnUrl("http://localhost:8080/api/pay/alipay/return");
         assertEquals("https://openapi-sandbox.dl.alipaydev.com/gateway.do", cfg.getGateway());
         var service = new AlipayService(props);

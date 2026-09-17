@@ -18,6 +18,7 @@ import com.hospital.search.doc.ArticleDoc;
 import com.hospital.search.doc.DiseaseDoc;
 import com.hospital.search.doc.DoctorDoc;
 import com.hospital.search.doc.HospitalDoc;
+import com.hospital.vo.SearchOverviewVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -66,7 +67,13 @@ public class SearchService {
     // ---------------- 对外搜索 ----------------
 
     public PageResult<Hospital> searchHospitals(String keyword, long pageNum, long pageSize) {
-        searchHistoryService.incrHot(keyword);
+        return searchHospitals(keyword, pageNum, pageSize, true);
+    }
+
+    public PageResult<Hospital> searchHospitals(String keyword, long pageNum, long pageSize, boolean track) {
+        if (track) {
+            searchHistoryService.incrHot(keyword);
+        }
         if (StringUtils.hasText(keyword) && esUsable()) {
             try {
                 EsPage ep = esSearch(HospitalDoc.class, keyword, HOSPITAL_FIELDS, pageNum, pageSize, HospitalDoc::getId);
@@ -79,7 +86,13 @@ public class SearchService {
     }
 
     public PageResult<Doctor> searchDoctors(String keyword, long pageNum, long pageSize) {
-        searchHistoryService.incrHot(keyword);
+        return searchDoctors(keyword, pageNum, pageSize, true);
+    }
+
+    public PageResult<Doctor> searchDoctors(String keyword, long pageNum, long pageSize, boolean track) {
+        if (track) {
+            searchHistoryService.incrHot(keyword);
+        }
         if (StringUtils.hasText(keyword)) {
             IPage<Doctor> nameMatches = doctorMapper.selectPage(new Page<>(pageNum, pageSize),
                     Wrappers.<Doctor>lambdaQuery()
@@ -101,7 +114,13 @@ public class SearchService {
     }
 
     public PageResult<Disease> searchDiseases(String keyword, long pageNum, long pageSize) {
-        searchHistoryService.incrHot(keyword);
+        return searchDiseases(keyword, pageNum, pageSize, true);
+    }
+
+    public PageResult<Disease> searchDiseases(String keyword, long pageNum, long pageSize, boolean track) {
+        if (track) {
+            searchHistoryService.incrHot(keyword);
+        }
         if (StringUtils.hasText(keyword) && esUsable()) {
             try {
                 EsPage ep = esSearch(DiseaseDoc.class, keyword, DISEASE_FIELDS, pageNum, pageSize, DiseaseDoc::getId);
@@ -114,7 +133,13 @@ public class SearchService {
     }
 
     public PageResult<Article> searchArticles(String keyword, long pageNum, long pageSize) {
-        searchHistoryService.incrHot(keyword);
+        return searchArticles(keyword, pageNum, pageSize, true);
+    }
+
+    public PageResult<Article> searchArticles(String keyword, long pageNum, long pageSize, boolean track) {
+        if (track) {
+            searchHistoryService.incrHot(keyword);
+        }
         if (StringUtils.hasText(keyword) && esUsable()) {
             try {
                 EsPage ep = esSearch(ArticleDoc.class, keyword, ARTICLE_FIELDS, pageNum, pageSize, ArticleDoc::getId);
@@ -124,6 +149,16 @@ public class SearchService {
             }
         }
         return dbArticles(keyword, pageNum, pageSize);
+    }
+
+    /** 一次搜索同时返回四类结果，热搜只计数一次。 */
+    public SearchOverviewVO searchAll(String keyword, long pageNum, long pageSize) {
+        searchHistoryService.incrHot(keyword);
+        return new SearchOverviewVO(
+                searchHospitals(keyword, pageNum, pageSize, false),
+                searchDoctors(keyword, pageNum, pageSize, false),
+                searchDiseases(keyword, pageNum, pageSize, false),
+                searchArticles(keyword, pageNum, pageSize, false));
     }
 
     // ---------------- 重建索引 ----------------

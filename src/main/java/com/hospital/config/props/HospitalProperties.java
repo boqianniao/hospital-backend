@@ -90,5 +90,9 @@ public class HospitalProperties {
         private int hotDefaultLimit = 10;
         /** 热搜单次返回条数上限 */
         private int hotMaxLimit = 50;
+        /** 联想词默认返回条数 */
+        private int suggestionDefaultLimit = 8;
+        /** 联想词单次返回条数上限 */
+        private int suggestionMaxLimit = 20;
     }
 }

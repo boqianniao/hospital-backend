@@ -133,7 +133,16 @@ class PaymentServiceTest {
     }
     @Test void returnMustVerifyBeforeQuery() {
         when(alipay.verifyNotify(anyMap())).thenReturn(false);
-        assertFalse(service.handleAlipayReturn(callback())); verify(alipay, never()).query(anyString());
+        assertFalse(service.handleAlipayReturn(callback()).paid()); verify(alipay, never()).query(anyString());
+    }
+    @Test void verifiedPaidReturnIncludesSuccessTarget() {
+        when(alipay.query("GH1")).thenReturn(new AlipayTradeQueryResponse().setOutTradeNo("GH1")
+                .setTradeNo("ALI1").setTradeStatus("TRADE_SUCCESS").setTotalAmount("10.00"));
+        var result = service.handleAlipayReturn(callback());
+        assertTrue(result.paid());
+        assertEquals("GH1", result.orderNo());
+        assertEquals(1, result.businessType());
+        assertEquals(1L, result.orderId());
     }
     @Test void failedRefundDoesNotMarkRefunded() {
         order.setStatus(2); flow.setPayStatus(1); flow.setThirdPartyTradeNo("ALI1");

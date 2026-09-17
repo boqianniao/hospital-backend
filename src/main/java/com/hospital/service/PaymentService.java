@@ -93,9 +93,18 @@ public class PaymentService {
 
     /** 浏览器返回只能触发验签后的服务端查单，不能直接标记支付成功。 */
     @Transactional(rollbackFor = Exception.class)
-    public boolean handleAlipayReturn(Map<String, String> params) {
-        if (!alipayService.verifyNotify(params) || !StringUtils.hasText(params.get("out_trade_no"))) return false;
-        return syncAlipay(params.get("out_trade_no"));
+    public AlipayReturnResult handleAlipayReturn(Map<String, String> params) {
+        if (!alipayService.verifyNotify(params) || !StringUtils.hasText(params.get("out_trade_no"))) {
+            return AlipayReturnResult.unverified();
+        }
+        String orderNo = params.get("out_trade_no");
+        PaymentFlow flow = paymentFlowMapper.selectOne(Wrappers.<PaymentFlow>lambdaQuery()
+                .eq(PaymentFlow::getBusinessOrderNo, orderNo).orderByDesc(PaymentFlow::getId).last("limit 1"));
+        if (flow == null || flow.getBusinessType() == null) return AlipayReturnResult.unverified();
+        boolean handled = syncAlipay(orderNo);
+        OrderView order = loadOrder(orderNo, flow.getBusinessType());
+        boolean paid = handled && !order.cancelled;
+        return new AlipayReturnResult(paid, orderNo, flow.getBusinessType(), order.id);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -244,5 +253,11 @@ public class PaymentService {
         BigDecimal amount;
         boolean paid;
         boolean cancelled;
+    }
+
+    public record AlipayReturnResult(boolean paid, String orderNo, Integer businessType, Long orderId) {
+        public static AlipayReturnResult unverified() {
+            return new AlipayReturnResult(false, null, null, null);
+        }
     }
 }

@@ -8,6 +8,7 @@ import com.hospital.common.result.ResultCode;
 import com.hospital.config.props.HospitalProperties;
 import com.hospital.dto.order.PayCreateDTO;
 import com.hospital.service.PaymentService;
+import com.hospital.service.PaymentService.AlipayReturnResult;
 import com.hospital.vo.PayInfoVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 @Tag(name = "支付", description = "支付宝沙箱下单、通知和查单")
@@ -54,16 +56,14 @@ public class PayController {
     @Operation(summary = "支付宝浏览器同步返回")
     @GetMapping("/alipay/return")
     public ResponseEntity<Void> alipayReturn(HttpServletRequest request) {
-        boolean paid = false;
-        String orderNo = null;
+        AlipayReturnResult result = AlipayReturnResult.unverified();
         try {
             Map<String, String> params = singleParams(request);
-            orderNo = params.get("out_trade_no");
-            paid = paymentService.handleAlipayReturn(params);
+            result = paymentService.handleAlipayReturn(params);
         } catch (RuntimeException e) {
             log.warn("支付宝返回查单失败 type={}", e.getClass().getSimpleName());
         }
-        return ResponseEntity.status(HttpStatus.FOUND).location(frontendResultUri(orderNo, paid)).build();
+        return ResponseEntity.status(HttpStatus.FOUND).location(frontendResultUri(result)).build();
     }
 
     @Operation(summary = "查询并同步支付宝支付结果（需订单本人登录）")
@@ -95,21 +95,33 @@ public class PayController {
         throw new BusinessException(ResultCode.PARAM_ERROR, "未知业务订单号");
     }
 
-    private URI frontendResultUri(String orderNo, boolean paid) {
-        String page;
-        if (StringUtils.hasText(orderNo) && orderNo.startsWith("ZX")) {
-            page = "my-consult.html";
-        } else if (StringUtils.hasText(orderNo) && orderNo.startsWith("GH")) {
-            page = "my-appointment.html";
-        } else {
-            page = "index.html";
+    private URI frontendResultUri(AlipayReturnResult result) {
+        String page = "index.html";
+        if (result.paid() && result.orderId() != null) {
+            if (Objects.equals(result.businessType(), OrderStatus.BIZ_APPOINTMENT)) {
+                page = "reservation-success.html";
+            } else if (Objects.equals(result.businessType(), OrderStatus.BIZ_CONSULT)) {
+                page = "consult-success.html";
+            }
+        } else if (StringUtils.hasText(result.orderNo())) {
+            if (Objects.equals(result.businessType(), OrderStatus.BIZ_APPOINTMENT)) {
+                page = "my-appointment.html";
+            } else if (Objects.equals(result.businessType(), OrderStatus.BIZ_CONSULT)) {
+                page = "my-consult.html";
+            }
         }
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUriString(properties.getFrontendBaseUrl())
-                .pathSegment(page)
-                .queryParam("payment", paid ? "success" : "pending");
-        if (StringUtils.hasText(orderNo) && !"index.html".equals(page)) {
-            builder.queryParam("orderNo", orderNo);
+                .pathSegment(page);
+        if (result.paid() && !"index.html".equals(page)) {
+            builder.queryParam("id", result.orderId())
+                    .queryParam("orderNo", result.orderNo())
+                    .queryParam("payMethod", "支付宝");
+        } else {
+            builder.queryParam("payment", "pending");
+            if (StringUtils.hasText(result.orderNo()) && !"index.html".equals(page)) {
+                builder.queryParam("orderNo", result.orderNo());
+            }
         }
         return builder.build().encode().toUri();
     }
