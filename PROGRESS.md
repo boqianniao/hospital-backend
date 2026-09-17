@@ -34,15 +34,12 @@
 
 ### A. 环境 / 凭证（阻塞真实运行，需业务方提供）
 
-- [ ] **A1 🔴 数据库授权**：`application.yml` 中 `nexamind@103.236.92.40/hospital_db` 报
-  `Access denied ... to database 'hospital_db'`，会阻塞**所有**读写库接口。
-  建库+建表+数据脚本：`hospital-backend/src/main/resources/db/hospital_full.sql`（不含账号/授权）。
-  若执行后端仍报 Access denied，说明应用账号对 `hospital_db` 无权限，需另行授权（本文件不含）。
-  **当前唯一导致接口跑不通的根因。**
-- [x] **A2 ✅ Elasticsearch 已接入**：`103.236.92.40:41324`（HTTP，elastic/NexaMind2026，ES 8.19.21），
-  已写入 `application.yml` 并实测应用可连通鉴权。
-  ⏳ 待 DB 打通后调 `POST /api/search/reindex`（需登录）建索引，搜索即从 DB 降级切到 ES。
-  （reindex 需从数据库读数据写入 ES，故依赖 A1）
+- [x] **A1 ✅ 数据库已就绪**：`hospital_db` 建库+建表+数据完成（脚本
+  `hospital-backend/src/main/resources/db/hospital_full.sql`），应用账号已授权，读库接口实测正常返回数据。
+- [x] **A2 ✅ Elasticsearch 已接入并建索引**：`103.236.92.40:41324`（HTTP，elastic，ES 8.19.21），
+  已写入 `application.yml`。已调 `POST /api/search/reindex` 全量建索引并实测：
+  搜索走 ES（无降级告警），索引文档数 hospital=26 / doctor=22 / disease=99 / article=12。
+  数据变更后可再次调 reindex 刷新。
 - [ ] **A3 🟠 支付宝沙箱凭证**：填写 `hospital.alipay` 的 `app-id / app-private-key /
   alipay-public-key` 并置 `enabled: true`，即从支付桩切到真实沙箱。
 - [x] **A4 ✅ 短信验证码已接入**：阿里云号码认证服务 dypnsapi `SendSmsVerifyCode`
