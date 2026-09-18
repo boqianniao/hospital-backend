@@ -78,10 +78,9 @@ hospital:
     enabled: true
     code-expire-seconds: 300
     code-length: 6
-    access-key-id: 'LTAI5t9zcDYGLizFQsoFe9Hq'
-    access-key-secret: 'MVufsimSYJRC1JBW0sJpEuLPIk8Jxz'
+    access-key-id: 'LTAI5t9MGnxa2GTh6AT9FLC8'
+    access-key-secret: 'e9rcx6CgNmt23Olvuttwkpoi2Zq38C'
     endpoint: 'dypnsapi.aliyuncs.com'
-    # 签名与模板需为阿里云控制台审核通过的值
     sign-name: '速通互联验证码'
     template-code: '100001'
   # 支付宝沙箱（RSA2 公钥模式）
